@@ -67,10 +67,22 @@ def count_parameters(model):
 ####################### MAIN FUNCTION #############################################################
 ####################################################################################################
 
+# Help Message : python3 svd_fine_tuning.py -model_path [path_to_model.pth] -rank [rank] -epochs [epochs]
+import argparse
+
+parser = argparse.ArgumentParser(
+    description='SVD Compression and Fine-Tuning',
+    usage='python3 svd_fine_tuning.py -model_path [path_to_model.pth] -rank [rank] -epochs [epochs]'
+)
+parser.add_argument('-model_path', type=str, default='models/original_model.pth', help='Path to the pre-trained model (default = models/original_model.pth)')
+parser.add_argument('-rank', type=int, default=20, help='Rank for SVD compression (default = 20)')
+parser.add_argument('-epochs', type=int, default=5, help='Number of epochs for fine-tuning (default = 5)')
+args = parser.parse_args()
+
 # Load your pre-trained model
 print("##############################################\n ORIGINAL MODEL \n##############################################")
 model = ImprovedNN()
-model.load_state_dict(torch.load('models/original_model.pth'))
+model.load_state_dict(torch.load(args.model_path))
 model.eval()
 # PRINT model parameter count
 original_model_size = count_parameters(model)
@@ -93,7 +105,7 @@ print("Compressing the model...")
 # Compress each linear layer in the model
 for name, layer in model.named_modules():
     if isinstance(layer, nn.Linear):
-        compressed_layer = svd_compress(layer, rank=20)  # Adjust 'rank' based on desired compression
+        compressed_layer = svd_compress(layer, args.rank)  # Adjust 'rank' based on desired compression
         # Navigate to the parent module
         modules = name.split('.')
         parent_module = model
@@ -127,7 +139,7 @@ trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True
 
 # Training loop
 model.train()
-for epoch in range(5):  # Adjust the number of epochs as needed
+for epoch in range(args.epochs):  # Adjust the number of epochs as needed
     for inputs, labels in trainloader:
         optimizer.zero_grad()
         outputs = model(inputs)
