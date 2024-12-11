@@ -48,6 +48,10 @@ def svd_compress(layer, rank):
     # Second layer: nn.Linear(rank, out_features)
     W2 = S_r_diag @ U_r.t()    # Shape: (rank, out_features) Note: @ is matrix multiplication
 
+    # Original: W ≈ U_r @ diag(S_r) @ V_r.t()
+    # Code:     W ≈ (S_r_diag @ U_r.t()).t() @ V_r.t()
+    #         = U_r @ diag(S_r) @ V_r.t()
+
     # Create the compressed layers
     first_layer = nn.Linear(layer.in_features, rank, bias=False)
     second_layer = nn.Linear(rank, layer.out_features, bias=True)
