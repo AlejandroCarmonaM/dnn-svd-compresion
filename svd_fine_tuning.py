@@ -32,36 +32,41 @@ def validate_model(model, valloader, model_name=""):
     return accuracy, inference_time
 
 def svd_compress(layer, rank):
-    # Get weight matrix W of shape (out_features, in_features)
-    W = layer.weight.data
-    # Perform SVD: W = U * S * V^T
-    U, S, V = torch.svd(W)
+    # Get weight matrix W and transpose it to match mathematical notation
+    # W.t() shape: (in_features, out_features)
+    W_t = layer.weight.data.t()
+    
+    # Perform SVD on W.t(): W.t() = U * S * V^T
+    # U: (in_features, in_features)
+    # S: (min(in_features,out_features),)
+    # V: (out_features, out_features)
+    U, S, V = torch.svd(W_t)
+    
     # Keep top 'rank' components
-    U_r = U[:, :rank]          # Shape: (out_features, rank)
+    U_r = U[:, :rank]          # Shape: (in_features, rank)
     S_r = S[:rank]             # Shape: (rank,)
-    V_r = V[:, :rank]          # Shape: (in_features, rank)
+    V_r = V[:, :rank]          # Shape: (out_features, rank)
     S_r_diag = torch.diag(S_r) # Shape: (rank, rank)
     
     # Prepare weight matrices for the two new layers
+    # For W = (W.t()).t() = (U * S * V^T).t() = V * S * U^T
+    
     # First layer: nn.Linear(in_features, rank)
-    W1 = V_r.t()               # Shape: (rank, in_features)
+    W1 = U_r               # Shape: (rank, in_features)
+    
     # Second layer: nn.Linear(rank, out_features)
-    W2 = S_r_diag @ U_r.t()    # Shape: (rank, out_features) Note: @ is matrix multiplication
-
-    # Original: W ≈ U_r @ diag(S_r) @ V_r.t()
-    # Code:     W ≈ (S_r_diag @ U_r.t()).t() @ V_r.t()
-    #         = U_r @ diag(S_r) @ V_r.t()
-
+    W2 = S_r_diag @ V_r.t()    # Shape: (rank, out_features)
+    
     # Create the compressed layers
     first_layer = nn.Linear(layer.in_features, rank, bias=False)
     second_layer = nn.Linear(rank, layer.out_features, bias=True)
     
     # Assign weights and bias
-    first_layer.weight.data = W1
-    second_layer.weight.data = W2.t()       # Transpose to match shape
+    # Note: We need to transpose the weight matrices back to match the original layer shape
+    first_layer.weight.data = W1.t()
+    second_layer.weight.data = W2.t()
     second_layer.bias.data = layer.bias.data.clone()
     
-    # Return as a sequential model
     return nn.Sequential(first_layer, second_layer)
 
 def count_parameters(model):
